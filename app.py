@@ -3,6 +3,7 @@ import streamlit as st
 import os
 import sqlite3
 import google.generativeai as ai
+import pandas as pd  # Import pandas for DataFrame
 
 # Load all environment variables
 load_dotenv()
@@ -24,15 +25,15 @@ def read_sql_query(sql, db):
     cur = conn.cursor()
     cur.execute(sql)
     rows = cur.fetchall()
+    columns = [description[0] for description in cur.description]  # Get column names
     conn.close()
-    return rows
+    return columns, rows  # Return column names along with rows
 
 # Defining the prompt for the trains_schedule database
 prompt = '''
 In this project, we have a database named trains_ with columns for train_name, train_number, source, destination, distance, total_time, departure, and arrival. The goal is to generate SQL queries dynamically based on user questions. For example,If the question is "Show all trains departing from station XYZ", the corresponding SQL query should be SELECT * FROM trains_ WHERE source = 'XYZ'. If the question is "Show me train with number 12345", the corresponding SQL query should be SELECT * FROM trains_ WHERE train_number = 12345;.
 This approach allows users to retrieve specific information from the train schedule database through natural language queries. The SQL code should not have any delimiters like backticks or the word "SQL" in the output.
 '''
-#SELECT * FROM trains_ WHERE train_number = 12345;
 
 # Streamlit app
 st.set_page_config(page_title='Retrieve SQL Data')
@@ -46,13 +47,16 @@ if submit:
     st.write(f"Generated SQL Query: {response}")
     
     try:
-        data = read_sql_query(response, 'trains_.db')
-        st.subheader("The Response is:")
-        # Display the results in a readable format
+        # Fetch column names and data rows from the query
+        columns, data = read_sql_query(response, 'trains_.db')
+        
+        # Remove the first column
         if data:
-            for row in data:
-                st.write(row)
+            df = pd.DataFrame(data, columns=columns)  # Convert data to DataFrame
+            df = df.iloc[:, 1:]  # Remove the first column using iloc (indexing)
+            st.dataframe(df)  # Display the DataFrame in a table format
         else:
             st.write("No data found.")
     except Exception as e:
         st.write(f"Error executing SQL query: {e}")
+
